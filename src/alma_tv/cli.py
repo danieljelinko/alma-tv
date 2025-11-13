@@ -170,24 +170,163 @@ def library_scan(
     rprint(f"  • Failed: {summary['failed']} files")
 
 
-# Schedule commands (stubs for now)
+# Schedule commands
 schedule_app = typer.Typer(help="Schedule management")
 app.add_typer(schedule_app, name="schedule")
 
 
 @schedule_app.command("today")
-def schedule_today() -> None:
+def schedule_today(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    generate: bool = typer.Option(False, "--generate", help="Generate if not exists"),
+) -> None:
     """Show today's schedule."""
-    rprint("[yellow]Schedule generation not yet implemented[/yellow]")
+    from datetime import date
+
+    from alma_tv.database import init_db
+    from alma_tv.scheduler import LineupGenerator
+
+    init_db()
+    today = date.today()
+
+    _show_schedule(today, json_output, generate)
 
 
 @schedule_app.command("show")
 def schedule_show(
-    date: Optional[str] = typer.Option(None, "--date", help="Date (YYYY-MM-DD)"),
-    preview: bool = typer.Option(False, "--preview", help="Preview mode"),
+    target_date: Optional[str] = typer.Argument(None, help="Date (YYYY-MM-DD)"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    generate: bool = typer.Option(False, "--generate", "-g", help="Generate if not exists"),
 ) -> None:
     """Show schedule for a specific date."""
-    rprint(f"[yellow]Schedule for {date or 'today'} (not yet implemented)[/yellow]")
+    from datetime import date, datetime
+
+    from alma_tv.database import init_db
+
+    init_db()
+
+    if target_date:
+        try:
+            show_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+        except ValueError:
+            rprint(f"[red]Invalid date format: {target_date}. Use YYYY-MM-DD[/red]")
+            raise typer.Exit(1)
+    else:
+        show_date = date.today()
+
+    _show_schedule(show_date, json_output, generate)
+
+
+@schedule_app.command("generate")
+def schedule_generate(
+    target_date: Optional[str] = typer.Argument(None, help="Date (YYYY-MM-DD)"),
+    duration: Optional[int] = typer.Option(None, "--duration", help="Target duration in minutes"),
+) -> None:
+    """Generate lineup for a specific date."""
+    from datetime import date, datetime
+
+    from alma_tv.database import init_db
+    from alma_tv.scheduler import LineupGenerator
+
+    init_db()
+
+    if target_date:
+        try:
+            show_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+        except ValueError:
+            rprint(f"[red]Invalid date format: {target_date}. Use YYYY-MM-DD[/red]")
+            raise typer.Exit(1)
+    else:
+        show_date = date.today()
+
+    rprint(f"[cyan]Generating lineup for {show_date}...[/cyan]")
+
+    generator = LineupGenerator()
+
+    with console.status("[bold green]Generating...", spinner="dots"):
+        session_id = generator.generate_lineup(
+            target_date=show_date, target_duration_minutes=duration
+        )
+
+    if session_id:
+        rprint(f"[green]✓ Lineup generated![/green] Session ID: {session_id}")
+        _show_schedule(show_date, json_output=False, generate=False)
+    else:
+        rprint("[red]Failed to generate lineup[/red]")
+        raise typer.Exit(1)
+
+
+def _show_schedule(show_date: date, json_output: bool, generate: bool) -> None:
+    """Helper to show schedule details."""
+    from datetime import datetime
+
+    from alma_tv.database import Session, get_db
+    from alma_tv.scheduler import LineupGenerator
+
+    with get_db() as db:
+        session = (
+            db.query(Session)
+            .filter(Session.show_date == datetime.combine(show_date, datetime.min.time()))
+            .first()
+        )
+
+        if not session and generate:
+            rprint(f"[yellow]No lineup exists for {show_date}, generating...[/yellow]")
+            generator = LineupGenerator()
+            session_id = generator.generate_lineup(target_date=show_date)
+            session = db.query(Session).filter(Session.id == session_id).first()
+
+        if not session:
+            rprint(f"[yellow]No lineup exists for {show_date}[/yellow]")
+            rprint("Use --generate to create one")
+            return
+
+        if json_output:
+            schedule_data = {
+                "date": show_date.isoformat(),
+                "status": session.status.value,
+                "total_duration_seconds": session.total_duration_seconds,
+                "episodes": [
+                    {
+                        "slot": ph.slot_order,
+                        "series": ph.video.series,
+                        "episode_code": ph.video.episode_code,
+                        "title": ph.video.title,
+                        "duration_seconds": ph.video.duration_seconds,
+                        "completed": ph.completed,
+                    }
+                    for ph in session.play_history
+                ],
+            }
+            rprint(json.dumps(schedule_data, indent=2))
+        else:
+            # Pretty table output
+            table = Table(title=f"Schedule for {show_date}", show_header=True)
+            table.add_column("#", style="cyan", width=3)
+            table.add_column("Series", style="green")
+            table.add_column("Episode", style="yellow")
+            table.add_column("Title", style="white")
+            table.add_column("Duration", style="magenta")
+            table.add_column("Status", style="blue")
+
+            for ph in sorted(session.play_history, key=lambda x: x.slot_order):
+                status = "✓" if ph.completed else "○"
+                table.add_row(
+                    str(ph.slot_order),
+                    ph.video.series,
+                    ph.video.episode_code,
+                    ph.video.title or "",
+                    f"{ph.video.duration_seconds // 60}m {ph.video.duration_seconds % 60}s",
+                    status,
+                )
+
+            console.print(table)
+
+            # Summary
+            total_mins = session.total_duration_seconds // 60
+            rprint(f"\n[cyan]Status:[/cyan] {session.status.value}")
+            rprint(f"[cyan]Total Duration:[/cyan] {total_mins}m {session.total_duration_seconds % 60}s")
+            rprint(f"[cyan]Episodes:[/cyan] {len(session.play_history)}")
 
 
 # Playback commands (stubs for now)
