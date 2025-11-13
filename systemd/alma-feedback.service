@@ -1,0 +1,25 @@
+[Unit]
+Description=Alma TV Feedback UI Web Server
+After=network.target alma-playback.service
+
+[Service]
+Type=simple
+User=alma
+Group=alma
+WorkingDirectory=/opt/alma-tv
+Environment="PATH=/opt/alma-tv/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/alma-tv/.venv/bin/alma feedback ui
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/alma /var/lib/alma
+
+[Install]
+WantedBy=multi-user.target
