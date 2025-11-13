@@ -329,26 +329,86 @@ def _show_schedule(show_date: date, json_output: bool, generate: bool) -> None:
             rprint(f"[cyan]Episodes:[/cyan] {len(session.play_history)}")
 
 
-# Playback commands (stubs for now)
+# Playback commands
 playback_app = typer.Typer(help="Playback control")
 app.add_typer(playback_app, name="playback")
 
 
 @playback_app.command("run")
-def playback_run() -> None:
-    """Run playback orchestrator daemon."""
-    rprint("[yellow]Playback orchestrator not yet implemented[/yellow]")
+def playback_run(
+    daemon: bool = typer.Option(False, "--daemon", help="Run as daemon"),
+) -> None:
+    """Run playback orchestrator."""
+    from alma_tv.database import init_db
+    from alma_tv.playback import PlaybackOrchestrator
+
+    init_db()
+
+    orchestrator = PlaybackOrchestrator()
+
+    if daemon:
+        rprint("[cyan]Starting playback orchestrator daemon...[/cyan]")
+        orchestrator.run_daemon()
+    else:
+        rprint("[cyan]Playing today's session...[/cyan]")
+        success = orchestrator.play_today_session()
+        if success:
+            rprint("[green]✓ Playback completed successfully[/green]")
+        else:
+            rprint("[red]✗ Playback failed[/red]")
+            raise typer.Exit(1)
 
 
-# Clock commands (stubs for now)
+@playback_app.command("stop")
+def playback_stop() -> None:
+    """Stop current playback."""
+    rprint("[yellow]Playback stop not yet implemented (use system commands)[/yellow]")
+
+
+# Clock commands
 clock_app = typer.Typer(help="Clock display")
 app.add_typer(clock_app, name="clock")
 
 
 @clock_app.command("run")
-def clock_run() -> None:
-    """Run clock display service."""
-    rprint("[yellow]Clock service not yet implemented[/yellow]")
+def clock_run(
+    daemon: bool = typer.Option(False, "--daemon", help="Run continuous update loop"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
+) -> None:
+    """Render SVG clock display."""
+    from alma_tv.clock import ClockRenderer
+
+    renderer = ClockRenderer()
+
+    if daemon:
+        rprint("[cyan]Starting clock update loop...[/cyan]")
+        rprint(f"Updating every {renderer.settings.clock_update_interval}s")
+        rprint("Press Ctrl+C to stop")
+        renderer.run_update_loop()
+    else:
+        output_path = Path(output) if output else None
+        saved_path = renderer.save(output_path=output_path)
+        rprint(f"[green]✓ Clock rendered:[/green] {saved_path}")
+
+
+@clock_app.command("test")
+def clock_test() -> None:
+    """Test clock rendering with current time."""
+    from datetime import datetime
+
+    from alma_tv.clock import ClockRenderer
+
+    renderer = ClockRenderer()
+
+    # Render with current time
+    dwg = renderer.render(current_time=datetime.now())
+
+    # Save to temp location
+    test_path = Path("/tmp/alma_clock_test.svg")
+    dwg.saveas(str(test_path))
+
+    rprint(f"[green]✓ Test clock rendered:[/green] {test_path}")
+    rprint(f"Open in browser: file://{test_path}")
 
 
 if __name__ == "__main__":
