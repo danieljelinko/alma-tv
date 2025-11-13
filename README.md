@@ -13,23 +13,92 @@ Alma TV is a Raspberry Pi–friendly automation suite that assembles, schedules,
 3. Execute the phase-specific tasks in `TODOs.md`. Each checklist item is designed for hands-off agent execution, including the validation steps and success criteria.
 4. Once the automation stack is coded, run the provided tests/benchmarks (outlined in `plan.md`) to validate library discovery, scheduling logic, playback sequencing, feedback persistence, and clock rendering.
 
-## Quick Start
+## Development Environment Setup
+
+### Prerequisites
+- Python 3.11 or higher
+- FFmpeg (for media file metadata extraction)
+- Git
+
+### Installation
+
 ```bash
-# Clone
+# Clone the repository
 git clone https://github.com/<your-account>/alma-tv.git
 cd alma-tv
 
 # Create and activate a Python 3.11+ virtual environment
-python -m venv .venv
-source .venv/bin/activate
+python3.11 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install core dependencies once implemented in pyproject/requirements
-pip install -r requirements.txt  # placeholder until code exists
+# Upgrade pip
+pip install --upgrade pip
 
-# Run smoke test scripts (defined in plan.md) once the modules land
+# Install the package in editable mode with dev dependencies
+pip install -e ".[dev]"
+
+# Copy environment configuration
+cp .env.example .env
+# Edit .env to match your local setup
+
+# Install FFmpeg (if not already installed)
+# Ubuntu/Debian:
+# sudo apt-get install ffmpeg
+# macOS:
+# brew install ffmpeg
+# Raspberry Pi OS:
+# sudo apt-get install ffmpeg
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run specific test suites
 pytest tests/library            # verifies repository scanning
 pytest tests/scheduler          # validates daily lineup generation
 pytest tests/integration        # covers playback + feedback loop
+
+# Run with coverage
+pytest --cov=alma_tv --cov-report=html
+
+# Run benchmarks
+pytest benchmarks/ --benchmark-only
+```
+
+### CLI Usage
+
+```bash
+# Show configuration
+alma config show
+
+# Scan media library
+alma scan
+
+# List available series
+alma library list
+
+# Generate today's schedule
+alma schedule today
+
+# Preview schedule for specific date
+alma schedule --date 2025-11-13 --preview
+
+# Run playback daemon (typically run via systemd)
+alma playback run
+
+# Run clock service
+alma clock run
+```
+
+### Raspberry Pi Smoke Test
+
+On Raspberry Pi hardware, run the smoke test to validate the full stack:
+
+```bash
+bash scripts/run_pi_smoke.sh
 ```
 
 Refer to `plan.md` for deeper implementation notes and to `TODOs.md` for the detailed execution plan.

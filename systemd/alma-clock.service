@@ -1,0 +1,26 @@
+[Unit]
+Description=Alma TV Clock Display Service
+After=network.target graphical.target
+
+[Service]
+Type=simple
+User=alma
+Group=alma
+WorkingDirectory=/opt/alma-tv
+Environment="PATH=/opt/alma-tv/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="DISPLAY=:0"
+ExecStart=/opt/alma-tv/.venv/bin/alma clock run --daemon
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/alma /var/cache/alma
+
+[Install]
+WantedBy=graphical.target
