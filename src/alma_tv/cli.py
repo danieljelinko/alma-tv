@@ -73,15 +73,75 @@ def config_show(
         console.print(table)
 
 
-# Library commands (stubs for now)
+# Library commands
 library_app = typer.Typer(help="Media library management")
 app.add_typer(library_app, name="library")
 
 
 @library_app.command("list")
-def library_list() -> None:
-    """List series in the library."""
-    rprint("[yellow]Library listing not yet implemented[/yellow]")
+def library_list(
+    series: Optional[str] = typer.Option(None, "--series", "-s", help="Filter by series"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """List series or episodes in the library."""
+    from alma_tv.database import init_db
+    from alma_tv.library import LibraryService
+
+    init_db()
+    service = LibraryService()
+
+    if series:
+        # List episodes for specific series
+        episodes = service.list_episodes(series=series)
+        if json_output:
+            rprint(
+                json.dumps(
+                    [
+                        {
+                            "id": ep.id,
+                            "series": ep.series,
+                            "season": ep.season,
+                            "episode_code": ep.episode_code,
+                            "title": ep.title,
+                            "duration_seconds": ep.duration_seconds,
+                        }
+                        for ep in episodes
+                    ],
+                    indent=2,
+                )
+            )
+        else:
+            table = Table(title=f"{series} Episodes", show_header=True)
+            table.add_column("ID", style="cyan")
+            table.add_column("Episode", style="green")
+            table.add_column("Title", style="white")
+            table.add_column("Duration", style="yellow")
+
+            for ep in episodes:
+                table.add_row(
+                    str(ep.id),
+                    ep.episode_code,
+                    ep.title or "",
+                    f"{ep.duration_seconds // 60}m {ep.duration_seconds % 60}s",
+                )
+
+            console.print(table)
+    else:
+        # List all series
+        series_list = service.list_series()
+        if json_output:
+            rprint(json.dumps(series_list, indent=2))
+        else:
+            table = Table(title="Media Library", show_header=True)
+            table.add_column("Series", style="cyan")
+            table.add_column("Episodes", style="green")
+            table.add_column("Total Duration", style="yellow")
+
+            for s in series_list:
+                total_mins = s["total_duration_seconds"] // 60
+                table.add_row(str(s["series"]), str(s["episode_count"]), f"{total_mins}m")
+
+            console.print(table)
 
 
 @library_app.command("scan")
@@ -89,9 +149,25 @@ def library_scan(
     path: Optional[str] = typer.Argument(None, help="Path to scan"),
 ) -> None:
     """Scan media library for new content."""
+    from alma_tv.database import init_db
+    from alma_tv.library import Scanner
+
     settings = get_settings()
-    scan_path = path or str(settings.media_root)
-    rprint(f"[yellow]Scanning {scan_path} (not yet implemented)[/yellow]")
+    scan_path = Path(path) if path else settings.media_root
+
+    rprint(f"[cyan]Scanning media library:[/cyan] {scan_path}")
+
+    init_db()
+    scanner = Scanner(media_root=scan_path)
+
+    with console.status("[bold green]Scanning...", spinner="dots"):
+        summary = scanner.scan_directory()
+
+    rprint(f"\n[green]Scan complete![/green]")
+    rprint(f"  • Scanned: {summary['scanned']} files")
+    rprint(f"  • Added: {summary['added']} videos")
+    rprint(f"  • Updated: {summary.get('updated', 0)} videos")
+    rprint(f"  • Failed: {summary['failed']} files")
 
 
 # Schedule commands (stubs for now)
