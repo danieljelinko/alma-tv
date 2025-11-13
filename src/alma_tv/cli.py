@@ -411,5 +411,80 @@ def clock_test() -> None:
     rprint(f"Open in browser: file://{test_path}")
 
 
+# Feedback commands
+feedback_app = typer.Typer(help="Feedback management")
+app.add_typer(feedback_app, name="feedback")
+
+
+@feedback_app.command("ui")
+def feedback_ui(
+    port: Optional[int] = typer.Option(None, "--port", "-p", help="Port to run on"),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug mode"),
+) -> None:
+    """Launch feedback UI web server."""
+    from alma_tv.database import init_db
+    from alma_tv.feedback.ui import run_feedback_ui
+
+    init_db()
+
+    port_str = f":{port}" if port else f":{get_settings().feedback_port}"
+    rprint(f"[cyan]Starting feedback UI...[/cyan]")
+    rprint(f"Open in browser: http://localhost{port_str}")
+
+    run_feedback_ui(port=port, debug=debug)
+
+
+@feedback_app.command("report")
+def feedback_report(
+    days: int = typer.Option(30, "--days", "-d", help="Days to include"),
+    export_format: Optional[str] = typer.Option(None, "--format", "-f", help="Export format (csv, json)"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file"),
+) -> None:
+    """Generate feedback report."""
+    from alma_tv.database import init_db
+    from alma_tv.feedback import FeedbackReporter
+
+    init_db()
+    reporter = FeedbackReporter()
+
+    if export_format:
+        # Export to file
+        if export_format.lower() == "csv":
+            data = reporter.export_to_csv(days=days)
+        elif export_format.lower() == "json":
+            data = reporter.export_to_json(days=days)
+        else:
+            rprint(f"[red]Unknown format: {export_format}[/red]")
+            raise typer.Exit(1)
+
+        if output:
+            Path(output).write_text(data)
+            rprint(f"[green]✓ Exported to:[/green] {output}")
+        else:
+            rprint(data)
+    else:
+        # Show summary
+        summary = reporter.get_recent_summary(days=days)
+
+        rprint(f"\n[cyan]Feedback Summary (Last {days} days)[/cyan]")
+        rprint(f"Total Feedback: {summary['total_feedback']}")
+        rprint(f"  😍 Liked: {summary['liked']} ({summary['liked_percentage']:.1f}%)")
+        rprint(f"  😊 Okay: {summary['okay']} ({summary['okay_percentage']:.1f}%)")
+        rprint(f"  😢 Never: {summary['never']} ({summary['never_percentage']:.1f}%)")
+
+        # Top liked
+        rprint(f"\n[cyan]Top Liked Episodes:[/cyan]")
+        top_liked = reporter.get_top_liked_episodes(limit=5)
+        for ep in top_liked:
+            rprint(f"  • {ep['series']} {ep['episode_code']} - {ep['like_count']} likes")
+
+        # Never again
+        never_again = reporter.get_never_again_episodes()
+        if never_again:
+            rprint(f"\n[yellow]Never Again Episodes:[/yellow]")
+            for ep in never_again:
+                rprint(f"  • {ep['series']} {ep['episode_code']} - {ep['never_count']}x")
+
+
 if __name__ == "__main__":
     app()
