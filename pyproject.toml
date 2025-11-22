@@ -35,6 +35,7 @@ dependencies = [
     "flask>=3.0.0",
     "python-dotenv>=1.0.0",
     "alembic>=1.12.0",
+    "python-fasthtml>=0.12.35",
 ]
 
 [project.optional-dependencies]

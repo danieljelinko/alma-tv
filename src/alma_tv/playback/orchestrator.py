@@ -8,6 +8,7 @@ from typing import Optional
 from alma_tv.config import get_settings
 from alma_tv.database import PlayHistory, Session, get_db
 from alma_tv.database.models import SessionStatus
+from sqlalchemy.orm import joinedload
 from alma_tv.logging.config import get_logger
 from alma_tv.playback.players import get_player
 from alma_tv.scheduler import LineupGenerator
@@ -107,9 +108,16 @@ class PlaybackOrchestrator:
         with get_db() as db:
             session = (
                 db.query(Session)
+                .options(joinedload(Session.play_history).joinedload(PlayHistory.video))
                 .filter(Session.show_date == datetime.combine(target_date, datetime.min.time()))
                 .first()
             )
+            
+            if session:
+                db.expunge(session)
+                for ph in session.play_history:
+                    db.expunge(ph)
+                    db.expunge(ph.video)
 
             if not session:
                 logger.warning(f"No session found for {target_date}, generating...")
@@ -120,7 +128,17 @@ class PlaybackOrchestrator:
                     logger.error("Failed to generate session")
                     return False
 
-                session = db.query(Session).filter(Session.id == session_id).first()
+                session = (
+                    db.query(Session)
+                    .options(joinedload(Session.play_history).joinedload(PlayHistory.video))
+                    .filter(Session.id == session_id)
+                    .first()
+                )
+                if session:
+                    db.expunge(session)
+                    for ph in session.play_history:
+                        db.expunge(ph)
+                        db.expunge(ph.video)
 
         if self.settings.dry_run:
             logger.info("DRY RUN: Would play session")

@@ -4,7 +4,7 @@ This plan translates the Alma TV ideas and PRD into an executable specification.
 
 ---
 ## 1. Scope & Objectives
-- Automate a daily 30-minute viewing block (7:00–7:30 PM) consisting of intro → 3–5 episodes → outro → feedback.
+- Automate a daily 30-minute viewing block (7:00–7:30 PM) consisting of intro → 3–5 episodes → outro → feedback. Number of episodes or time range is configurable.
 - Run entirely on a Raspberry Pi using locally stored video files.
 - Learn from play history and child feedback to personalize future schedules while respecting explicit show requests.
 - Present an SVG-based analog clock between shows to visualize time remaining until the next session.

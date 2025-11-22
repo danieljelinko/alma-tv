@@ -1,0 +1,18 @@
+[Unit]
+Description=Alma TV Playback Service
+After=network.target alma-scheduler.service
+
+[Service]
+Type=simple
+ExecStart={uv_path} run alma playback daemon
+WorkingDirectory={working_dir}
+Restart=on-failure
+RestartSec=10
+Environment=ALMA_DATABASE_URL={database_url}
+Environment=ALMA_LOG_FILE={log_file}
+# Ensure display access for MPV
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/{user}/.Xauthority
+
+[Install]
+WantedBy=default.target

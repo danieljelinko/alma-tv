@@ -5,26 +5,13 @@ from unittest.mock import patch
 
 import pytest
 
-from alma_tv.database import Feedback, PlayHistory, Session, Video, get_db, init_db
+from alma_tv.database import Feedback, PlayHistory, Session, Video
 from alma_tv.database.models import Rating, SessionStatus
 from alma_tv.scheduler.weights import WeightCalculator
 
 
-@pytest.fixture(scope="function")
-def test_db(tmp_path):
-    """Create test database."""
-    db_path = tmp_path / "test.db"
-
-    with patch("alma_tv.config.get_settings") as mock_settings:
-        mock_settings.return_value.database_url = f"sqlite:///{db_path}"
-        mock_settings.return_value.debug = False
-
-        init_db()
-        yield
-
-
 @pytest.fixture
-def sample_videos_with_feedback(test_db):
+def sample_videos_with_feedback(db_session):
     """Create sample videos with feedback."""
     videos = [
         Video(
@@ -53,67 +40,66 @@ def sample_videos_with_feedback(test_db):
         ),
     ]
 
-    with get_db() as db:
-        for video in videos:
-            db.add(video)
-        db.flush()
+    for video in videos:
+        db_session.add(video)
+    db_session.flush()
 
-        # Create session
-        session = Session(
-            show_date=datetime.utcnow() - timedelta(days=10),
-            status=SessionStatus.COMPLETED,
-        )
-        db.add(session)
-        db.flush()
+    # Create session
+    session = Session(
+        show_date=datetime.utcnow() - timedelta(days=10),
+        status=SessionStatus.COMPLETED,
+    )
+    db_session.add(session)
+    db_session.flush()
 
-        # Video 1: liked
-        play1 = PlayHistory(
-            session_id=session.id,
-            video_id=1,
-            slot_order=1,
-            started_at=datetime.utcnow() - timedelta(days=10),
-            ended_at=datetime.utcnow() - timedelta(days=10),
-            completed=True,
-        )
-        db.add(play1)
-        db.flush()
+    # Video 1: liked
+    play1 = PlayHistory(
+        session_id=session.id,
+        video_id=1,
+        slot_order=1,
+        started_at=datetime.utcnow() - timedelta(days=10),
+        ended_at=datetime.utcnow() - timedelta(days=10),
+        completed=True,
+    )
+    db_session.add(play1)
+    db_session.flush()
 
-        feedback1 = Feedback(play_history_id=play1.id, rating=Rating.LIKED)
-        db.add(feedback1)
+    feedback1 = Feedback(play_history_id=play1.id, rating=Rating.LIKED)
+    db_session.add(feedback1)
 
-        # Video 2: never again
-        play2 = PlayHistory(
-            session_id=session.id,
-            video_id=2,
-            slot_order=2,
-            started_at=datetime.utcnow() - timedelta(days=10),
-            ended_at=datetime.utcnow() - timedelta(days=10),
-            completed=True,
-        )
-        db.add(play2)
-        db.flush()
+    # Video 2: never again
+    play2 = PlayHistory(
+        session_id=session.id,
+        video_id=2,
+        slot_order=2,
+        started_at=datetime.utcnow() - timedelta(days=10),
+        ended_at=datetime.utcnow() - timedelta(days=10),
+        completed=True,
+    )
+    db_session.add(play2)
+    db_session.flush()
 
-        feedback2 = Feedback(play_history_id=play2.id, rating=Rating.NEVER)
-        db.add(feedback2)
+    feedback2 = Feedback(play_history_id=play2.id, rating=Rating.NEVER)
+    db_session.add(feedback2)
 
-        # Video 3: no feedback
+    # Video 3: no feedback
+    db_session.commit()
 
     return videos
 
 
-def test_baseline_weight(test_db):
+def test_baseline_weight(db_session):
     """Test baseline weight for video without feedback."""
-    with get_db() as db:
-        video = Video(
-            series="Test",
-            season=1,
-            episode_code="S01E01",
-            path="/test.mp4",
-            duration_seconds=420,
-        )
-        db.add(video)
-        db.flush()
-        video_id = video.id
+    video = Video(
+        series="Test",
+        season=1,
+        episode_code="S01E01",
+        path="/test.mp4",
+        duration_seconds=420,
+    )
+    db_session.add(video)
+    db_session.commit()
+    video_id = video.id
 
     calc = WeightCalculator()
     weight = calc.calculate_weight(video_id)
@@ -139,42 +125,42 @@ def test_never_again_weight(sample_videos_with_feedback):
     assert weight == WeightCalculator.NEVER_AGAIN_WEIGHT
 
 
-def test_weight_decay(test_db):
+def test_weight_decay(db_session):
     """Test that liked bonus decays over time."""
-    with get_db() as db:
-        video = Video(
-            series="Test",
-            season=1,
-            episode_code="S01E01",
-            path="/test.mp4",
-            duration_seconds=420,
-        )
-        db.add(video)
-        db.flush()
+    video = Video(
+        series="Test",
+        season=1,
+        episode_code="S01E01",
+        path="/test.mp4",
+        duration_seconds=420,
+    )
+    db_session.add(video)
+    db_session.flush()
 
-        session = Session(show_date=datetime.utcnow(), status=SessionStatus.COMPLETED)
-        db.add(session)
-        db.flush()
+    session = Session(show_date=datetime.utcnow(), status=SessionStatus.COMPLETED)
+    db_session.add(session)
+    db_session.flush()
 
-        # Liked 7 days ago (one half-life)
-        play = PlayHistory(
-            session_id=session.id,
-            video_id=video.id,
-            slot_order=1,
-            started_at=datetime.utcnow() - timedelta(days=7),
-            ended_at=datetime.utcnow() - timedelta(days=7),
-            completed=True,
-        )
-        db.add(play)
-        db.flush()
+    # Liked 7 days ago (one half-life)
+    play = PlayHistory(
+        session_id=session.id,
+        video_id=video.id,
+        slot_order=1,
+        started_at=datetime.utcnow() - timedelta(days=7),
+        ended_at=datetime.utcnow() - timedelta(days=7),
+        completed=True,
+    )
+    db_session.add(play)
+    db_session.flush()
 
-        feedback = Feedback(
-            play_history_id=play.id,
-            rating=Rating.LIKED,
-            submitted_at=datetime.utcnow() - timedelta(days=7),
-        )
-        db.add(feedback)
-        video_id = video.id
+    feedback = Feedback(
+        play_history_id=play.id,
+        rating=Rating.LIKED,
+        submitted_at=datetime.utcnow() - timedelta(days=7),
+    )
+    db_session.add(feedback)
+    db_session.commit()
+    video_id = video.id
 
     calc = WeightCalculator()
 
@@ -187,34 +173,34 @@ def test_weight_decay(test_db):
     assert weight_now < weight_past
 
 
-def test_freshness_boost(test_db):
+def test_freshness_boost(db_session):
     """Test that videos not played recently get a boost."""
-    with get_db() as db:
-        video = Video(
-            series="Test",
-            season=1,
-            episode_code="S01E01",
-            path="/test.mp4",
-            duration_seconds=420,
-        )
-        db.add(video)
-        db.flush()
+    video = Video(
+        series="Test",
+        season=1,
+        episode_code="S01E01",
+        path="/test.mp4",
+        duration_seconds=420,
+    )
+    db_session.add(video)
+    db_session.flush()
 
-        session = Session(show_date=datetime.utcnow(), status=SessionStatus.COMPLETED)
-        db.add(session)
-        db.flush()
+    session = Session(show_date=datetime.utcnow(), status=SessionStatus.COMPLETED)
+    db_session.add(session)
+    db_session.flush()
 
-        # Played 30 days ago
-        play = PlayHistory(
-            session_id=session.id,
-            video_id=video.id,
-            slot_order=1,
-            started_at=datetime.utcnow() - timedelta(days=30),
-            ended_at=datetime.utcnow() - timedelta(days=30),
-            completed=True,
-        )
-        db.add(play)
-        video_id = video.id
+    # Played 30 days ago
+    play = PlayHistory(
+        session_id=session.id,
+        video_id=video.id,
+        slot_order=1,
+        started_at=datetime.utcnow() - timedelta(days=30),
+        ended_at=datetime.utcnow() - timedelta(days=30),
+        completed=True,
+    )
+    db_session.add(play)
+    db_session.commit()
+    video_id = video.id
 
     calc = WeightCalculator()
     weight = calc.calculate_weight(video_id)

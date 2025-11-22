@@ -27,7 +27,7 @@ class Scanner:
 
     SUPPORTED_EXTENSIONS = {".mp4", ".mkv", ".avi", ".m4v", ".mov"}
     EPISODE_PATTERN = re.compile(
-        r"(?P<series>[^_]+)_S(?P<season>\d+)E(?P<episode>\d+)(?:_(?P<title>.+))?",
+        r"(?P<series>.+?)_S(?P<season>\d+)E(?P<episode>\d+)(?:_(?P<title>.+))?",
         re.IGNORECASE,
     )
 
@@ -243,15 +243,17 @@ class Scanner:
             summary: Scan summary dict
         """
         try:
+            from datetime import datetime, timezone
+            
             log_dir = Path("/var/log/alma")
             log_dir.mkdir(parents=True, exist_ok=True)
 
             log_file = log_dir / "scan_changes.jsonl"
             with open(log_file, "a") as f:
-                json.dump({"timestamp": str(datetime.utcnow()), **summary}, f)
+                json.dump({"timestamp": datetime.now(timezone.utc).isoformat(), **summary}, f)
                 f.write("\n")
-        except Exception as e:
-            logger.warning(f"Could not write change log: {e}")
+        except (PermissionError, OSError) as e:
+            logger.debug(f"Could not write change log: {e}")
 
 
 class MediaLibraryEventHandler(FileSystemEventHandler):

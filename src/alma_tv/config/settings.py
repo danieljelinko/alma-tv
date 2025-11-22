@@ -5,8 +5,56 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+import yaml
+from typing import Any, Dict, Tuple, Type
+
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+
+class YamlConfigSettingsSource(PydanticBaseSettingsSource):
+    """
+    A simple settings source class that loads variables from a YAML file
+    at the project's root.
+    """
+
+    def get_field_value(
+        self, field: Field, field_name: str
+    ) -> Tuple[Any, str, bool]:
+        encoding = self.config.get("env_file_encoding")
+        file_content_json = yaml.safe_load(
+            Path("config.yaml").read_text(encoding)
+        ) if Path("config.yaml").exists() else {}
+        
+        field_value = file_content_json.get(field_name)
+        return field_value, field_name, False
+
+    def prepare_field_value(
+        self, field_name: str, field: Field, value: Any, value_is_complex: bool
+    ) -> Any:
+        return value
+
+    def __call__(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {}
+        encoding = self.config.get("env_file_encoding")
+        
+        if not Path("config.yaml").exists():
+            return d
+            
+        try:
+            file_content = yaml.safe_load(Path("config.yaml").read_text(encoding))
+            if file_content:
+                d.update(file_content)
+        except Exception as e:
+            # Log warning or ignore if config file is malformed?
+            # For now, let's just print/log and continue
+            print(f"Warning: Failed to load config.yaml: {e}")
+            
+        return d
 
 
 class Settings(BaseSettings):
@@ -18,6 +66,23 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            YamlConfigSettingsSource(settings_cls),
+            file_secret_settings,
+        )
 
     # Media Library
     media_root: Path = Field(
@@ -108,6 +173,10 @@ class Settings(BaseSettings):
     dry_run: bool = Field(
         default=False,
         description="Dry run mode (no actual playback)",
+    )
+    keyword_map: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Map of keywords to series names",
     )
 
     @field_validator("start_time")

@@ -1,7 +1,7 @@
 """Library service API for querying video metadata."""
 
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import List, Optional
 
@@ -20,7 +20,7 @@ class LibraryService:
 
     def __init__(self):
         """Initialize library service."""
-        self._cache_timestamp = datetime.utcnow()
+        self._cache_timestamp = datetime.now(timezone.utc)
 
     def list_series(self) -> List[dict]:
         """
@@ -79,7 +79,10 @@ class LibraryService:
             if season is not None:
                 query = query.filter(Video.season == season)
 
-            return query.order_by(Video.series, Video.season, Video.episode_code).all()
+            results = query.order_by(Video.series, Video.season, Video.episode_code).all()
+            for video in results:
+                db.expunge(video)
+            return results
 
     def get_video_by_id(self, video_id: int) -> Optional[Video]:
         """
@@ -92,7 +95,10 @@ class LibraryService:
             Video object or None
         """
         with get_db() as db:
-            return db.query(Video).filter(Video.id == video_id).first()
+            video = db.query(Video).filter(Video.id == video_id).first()
+            if video:
+                db.expunge(video)
+            return video
 
     def get_video_by_path(self, path: str) -> Optional[Video]:
         """
@@ -105,7 +111,10 @@ class LibraryService:
             Video object or None
         """
         with get_db() as db:
-            return db.query(Video).filter(Video.path == path).first()
+            video = db.query(Video).filter(Video.path == path).first()
+            if video:
+                db.expunge(video)
+            return video
 
     def random_episode(
         self,
@@ -146,7 +155,7 @@ class LibraryService:
                 query = query.filter(~Video.id.in_(exclude_video_ids))
 
             # Exclude recently played videos (cooldown)
-            cooldown_date = datetime.utcnow() - timedelta(days=cooldown_days)
+            cooldown_date = datetime.now(timezone.utc) - timedelta(days=cooldown_days)
             recent_plays = (
                 db.query(PlayHistory.video_id)
                 .filter(PlayHistory.started_at >= cooldown_date)
@@ -170,7 +179,9 @@ class LibraryService:
                 return None
 
             # Random selection
-            return random.choice(candidates)
+            selected = random.choice(candidates)
+            db.expunge(selected)
+            return selected
 
     def random_episodes(
         self,
@@ -271,7 +282,7 @@ class LibraryService:
             List of Video objects
         """
         with get_db() as db:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
             results = (
                 db.query(Video)
@@ -331,5 +342,5 @@ class LibraryService:
     def clear_cache(self) -> None:
         """Clear LRU cache."""
         self.get_series_stats.cache_clear()
-        self._cache_timestamp = datetime.utcnow()
+        self._cache_timestamp = datetime.now(timezone.utc)
         logger.debug("Library service cache cleared")

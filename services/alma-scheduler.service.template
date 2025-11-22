@@ -1,0 +1,15 @@
+[Unit]
+Description=Alma TV Scheduler Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={uv_path} run alma schedule run --daemon
+WorkingDirectory={working_dir}
+Restart=on-failure
+RestartSec=30
+Environment=ALMA_DATABASE_URL={database_url}
+Environment=ALMA_LOG_FILE={log_file}
+
+[Install]
+WantedBy=default.target

@@ -1,6 +1,6 @@
 """Feedback collection and reporting."""
 
 from alma_tv.feedback.api import FeedbackService
-from alma_tv.feedback.reporting import FeedbackReporter
+from alma_tv.feedback.reporter import FeedbackReporter
 
 __all__ = ["FeedbackService", "FeedbackReporter"]

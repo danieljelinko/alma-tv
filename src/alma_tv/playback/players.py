@@ -1,6 +1,7 @@
 """Media player abstractions."""
 
 import subprocess
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -77,7 +78,8 @@ class VLCPlayer(Player):
 
         try:
             logger.info(f"Starting VLC playback: {file_path}")
-            env = {"DISPLAY": self.display}
+            env = os.environ.copy()
+            env["DISPLAY"] = self.display
 
             if wait:
                 result = subprocess.run(

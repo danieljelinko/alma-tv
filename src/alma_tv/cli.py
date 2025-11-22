@@ -1,6 +1,7 @@
 """Command-line interface for Alma TV."""
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -219,24 +220,54 @@ def schedule_show(
 
 @schedule_app.command("generate")
 def schedule_generate(
-    target_date: Optional[str] = typer.Argument(None, help="Date (YYYY-MM-DD)"),
+    target_date: Optional[str] = typer.Argument(None, help="Date (YYYY-MM-DD) or 'today'/'tomorrow'"),
     duration: Optional[int] = typer.Option(None, "--duration", help="Target duration in minutes"),
+    request: Optional[str] = typer.Option(None, "--request", "-r", help="Natural language request (e.g., 'one blueie and two throw throw')"),
 ) -> None:
     """Generate lineup for a specific date."""
-    from datetime import date, datetime
+    from datetime import date, datetime, timedelta
 
     from alma_tv.database import init_db
     from alma_tv.scheduler import LineupGenerator
+    from alma_tv.scheduler.parser import RequestParser
 
     init_db()
 
+    # Parse date
+    show_date = None
+    date_offset = 0
+    
     if target_date:
-        try:
-            show_date = datetime.strptime(target_date, "%Y-%m-%d").date()
-        except ValueError:
-            rprint(f"[red]Invalid date format: {target_date}. Use YYYY-MM-DD[/red]")
-            raise typer.Exit(1)
-    else:
+        target_lower = target_date.lower()
+        if target_lower == "today":
+            show_date = date.today()
+        elif target_lower == "tomorrow":
+            show_date = date.today() + timedelta(days=1)
+        else:
+            try:
+                show_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+            except ValueError:
+                rprint(f"[red]Invalid date format: {target_date}. Use YYYY-MM-DD, 'today', or 'tomorrow'[/red]")
+                raise typer.Exit(1)
+    
+    # Parse request if provided
+    request_payload = None
+    if request:
+        parser = RequestParser()
+        date_offset, parsed_requests = parser.parse(request)
+        
+        # Apply date offset from request if no explicit date was given
+        if not show_date:
+            show_date = date.today() + timedelta(days=date_offset)
+        
+        if parsed_requests:
+            request_payload = {"requests": parsed_requests}
+            rprint(f"[cyan]Parsed request:[/cyan]")
+            for req in parsed_requests:
+                rprint(f"  • {req['count']}x {req['series']}")
+    
+    # Default to today if no date specified
+    if not show_date:
         show_date = date.today()
 
     rprint(f"[cyan]Generating lineup for {show_date}...[/cyan]")
@@ -245,7 +276,9 @@ def schedule_generate(
 
     with console.status("[bold green]Generating...", spinner="dots"):
         session_id = generator.generate_lineup(
-            target_date=show_date, target_duration_minutes=duration
+            target_date=show_date,
+            target_duration_minutes=duration,
+            request_payload=request_payload,
         )
 
     if session_id:
@@ -484,6 +517,128 @@ def feedback_report(
             rprint(f"\n[yellow]Never Again Episodes:[/yellow]")
             for ep in never_again:
                 rprint(f"  • {ep['series']} {ep['episode_code']} - {ep['never_count']}x")
+
+
+# --- Clock Commands ---
+
+clock_app = typer.Typer(help="Manage clock service")
+app.add_typer(clock_app, name="clock")
+
+
+@clock_app.command("run")
+def clock_run():
+    """Run the clock service daemon."""
+    from alma_tv.clock.service import ClockService
+
+    service = ClockService()
+    service.run_daemon()
+
+
+@clock_app.command("generate")
+def clock_generate(
+    output: Path = typer.Option(
+        None, "--output", "-o", help="Output path for SVG file"
+    )
+):
+    """Generate a single clock SVG."""
+    from alma_tv.clock.renderer import ClockRenderer
+    from datetime import datetime
+
+    renderer = ClockRenderer()
+    svg = renderer.render(datetime.now())
+
+    if output:
+        output.write_text(svg)
+        typer.echo(f"Generated clock SVG at {output}")
+    else:
+        typer.echo(svg)
+
+
+
+# System commands
+system_app = typer.Typer(help="System management commands.")
+app.add_typer(system_app, name="system")
+
+@system_app.command("install")
+def install_services(
+    dry_run: bool = typer.Option(False, help="Print service files without writing them."),
+):
+    """Install systemd services for the current user."""
+    import getpass
+    import shutil
+    import subprocess
+    
+    # Get current environment details
+    user = getpass.getuser()
+    working_dir = str(Path.cwd())
+    uv_path = shutil.which("uv")
+    if not uv_path:
+        console.print("[red]Error: 'uv' not found in PATH.[/red]")
+        raise typer.Exit(1)
+        
+    settings = get_settings()
+    # Use the configured database URL or default to the absolute path of the default DB
+    database_url = str(settings.database_url)
+    if "sqlite:///" in database_url and not database_url.startswith("sqlite:////"):
+         # Convert relative sqlite path to absolute if needed
+         # But settings.database_url is likely already handled or we should rely on env var
+         pass
+
+    # Ensure log file path is absolute
+    log_file = str(settings.log_file.resolve())
+
+    # Service templates directory
+    templates_dir = Path("services")
+    if not templates_dir.exists():
+        console.print("[red]Error: 'services' directory not found.[/red]")
+        raise typer.Exit(1)
+
+    # Target directory
+    systemd_dir = Path.home() / ".config" / "systemd" / "user"
+    if not dry_run:
+        systemd_dir.mkdir(parents=True, exist_ok=True)
+
+    services = [
+        "alma-scheduler.service",
+        "alma-playback.service",
+        "alma-clock.service",
+        "alma-feedback.service",
+    ]
+
+    for service_name in services:
+        template_path = templates_dir / f"{service_name}.template"
+        if not template_path.exists():
+            console.print(f"[yellow]Warning: Template for {service_name} not found, skipping.[/yellow]")
+            continue
+
+        content = template_path.read_text()
+        filled_content = content.format(
+            uv_path=uv_path,
+            working_dir=working_dir,
+            user=user,
+            database_url=database_url,
+            log_file=log_file
+        )
+
+        if dry_run:
+            console.print(f"\n[bold green]--- {service_name} ---[/bold green]")
+            console.print(filled_content)
+        else:
+            target_path = systemd_dir / service_name
+            target_path.write_text(filled_content)
+            console.print(f"[green]Installed {service_name} to {target_path}[/green]")
+
+    if not dry_run:
+        # Reload systemd
+        try:
+            subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+            console.print("[bold green]Systemd daemon reloaded.[/bold green]")
+            console.print("\nTo start services run:")
+            console.print(f"  systemctl --user enable --now {' '.join(services)}")
+        except subprocess.CalledProcessError:
+            console.print("[red]Error reloading systemd daemon.[/red]")
+        except FileNotFoundError:
+            console.print("[yellow]Warning: 'systemctl' not found. Services installed but not reloaded.[/yellow]")
 
 
 if __name__ == "__main__":

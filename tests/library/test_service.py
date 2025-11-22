@@ -1,6 +1,6 @@
 """Tests for library service API."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -10,22 +10,8 @@ from alma_tv.database.models import Rating, SessionStatus
 from alma_tv.library.service import LibraryService
 
 
-@pytest.fixture(scope="function")
-def test_db(tmp_path):
-    """Create test database."""
-    db_path = tmp_path / "test.db"
-
-    with patch("alma_tv.config.get_settings") as mock_settings:
-        mock_settings.return_value.database_url = f"sqlite:///{db_path}"
-        mock_settings.return_value.debug = False
-
-        init_db()
-        yield
-        # Cleanup happens automatically when tmp_path is removed
-
-
 @pytest.fixture
-def sample_videos(test_db):
+def sample_videos(db_session):
     """Create sample videos in database."""
     videos = [
         Video(
@@ -75,9 +61,9 @@ def sample_videos(test_db):
         ),
     ]
 
-    with get_db() as db:
-        for video in videos:
-            db.add(video)
+    for video in videos:
+        db_session.add(video)
+    db_session.commit()
 
     return videos
 
@@ -200,7 +186,7 @@ def test_random_episode_with_cooldown(sample_videos):
     # Create a session and play history for video 1
     with get_db() as db:
         session = Session(
-            show_date=datetime.utcnow(),
+            show_date=datetime.now(timezone.utc),
             status=SessionStatus.COMPLETED,
         )
         db.add(session)
@@ -210,8 +196,8 @@ def test_random_episode_with_cooldown(sample_videos):
             session_id=session.id,
             video_id=1,
             slot_order=1,
-            started_at=datetime.utcnow() - timedelta(days=7),
-            ended_at=datetime.utcnow() - timedelta(days=7),
+            started_at=datetime.now(timezone.utc) - timedelta(days=7),
+            ended_at=datetime.now(timezone.utc) - timedelta(days=7),
             completed=True,
         )
         db.add(play)
@@ -230,7 +216,7 @@ def test_random_episode_never_again(sample_videos):
 
     # Mark video 1 as "never again"
     with get_db() as db:
-        session = Session(show_date=datetime.utcnow(), status=SessionStatus.COMPLETED)
+        session = Session(show_date=datetime.now(timezone.utc), status=SessionStatus.COMPLETED)
         db.add(session)
         db.flush()
 
@@ -238,8 +224,8 @@ def test_random_episode_never_again(sample_videos):
             session_id=session.id,
             video_id=1,
             slot_order=1,
-            started_at=datetime.utcnow(),
-            ended_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
+            ended_at=datetime.now(timezone.utc),
             completed=True,
         )
         db.add(play)
@@ -322,3 +308,47 @@ def test_cache_clearing(sample_videos):
     # Should still work after clearing
     stats2 = service.get_series_stats("Bluey")
     assert stats2 is not None
+
+def test_get_recently_played(sample_videos):
+    """Test getting recently played videos."""
+    service = LibraryService()
+
+    with get_db() as db:
+        # Create a session and play history
+        session = Session(
+            show_date=datetime.now(timezone.utc),
+            status=SessionStatus.COMPLETED,
+        )
+        db.add(session)
+        db.flush()
+
+        # Play video 1 (recent)
+        play1 = PlayHistory(
+            session_id=session.id,
+            video_id=1,
+            slot_order=1,
+            started_at=datetime.now(timezone.utc) - timedelta(days=2),
+            ended_at=datetime.now(timezone.utc) - timedelta(days=2),
+            completed=True,
+        )
+        db.add(play1)
+
+        # Play video 2 (old)
+        play2 = PlayHistory(
+            session_id=session.id,
+            video_id=2,
+            slot_order=2,
+            started_at=datetime.now(timezone.utc) - timedelta(days=20),
+            ended_at=datetime.now(timezone.utc) - timedelta(days=20),
+            completed=True,
+        )
+        db.add(play2)
+
+    # Should only get video 1 (within 14 days default)
+    recent = service.get_recently_played(days=14)
+    assert len(recent) == 1
+    assert recent[0].id == 1
+
+    # Should get both if we look back 30 days
+    recent_all = service.get_recently_played(days=30)
+    assert len(recent_all) == 2

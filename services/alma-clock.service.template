@@ -1,0 +1,15 @@
+[Unit]
+Description=Alma TV Clock Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={uv_path} run alma clock run
+WorkingDirectory={working_dir}
+Restart=on-failure
+RestartSec=10
+Environment=ALMA_DATABASE_URL={database_url}
+Environment=ALMA_LOG_FILE={log_file}
+
+[Install]
+WantedBy=default.target

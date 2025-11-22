@@ -57,7 +57,8 @@ class LineupGenerator:
             target_duration_minutes: Target duration (defaults to config)
             min_episodes: Minimum number of episodes
             max_episodes: Maximum number of episodes
-            request_payload: Optional request dict (e.g., {"series": "Bluey", "count": 3})
+            request_payload: Optional request dict (e.g., {"requests": [{"series": "Bluey", "count": 3}]})
+                             Legacy format {"series": "Bluey"} is also supported.
 
         Returns:
             Session ID if successful, None otherwise
@@ -89,10 +90,24 @@ class LineupGenerator:
                 logger.warning(f"Lineup already exists for {target_date}: session {existing.id}")
                 return existing.id
 
+        # Parse requests
+        requests = []
+        if request_payload:
+            if "requests" in request_payload:
+                requests = request_payload["requests"]
+            elif "series" in request_payload:
+                # Legacy support
+                count = request_payload.get("count", 3) # Default legacy count? Or implied?
+                # The old logic filtered exclusively. Let's assume legacy means "only this series".
+                # But here we want to support "include X".
+                # Let's treat legacy as "include X" but maybe with high count?
+                # Actually, let's just map it.
+                requests = [{"series": request_payload["series"], "count": request_payload.get("count", 3)}]
+
         # Build candidate pool
         candidates = self._build_candidate_pool(
             cooldown_days=self.settings.repeat_cooldown_days,
-            request_payload=request_payload,
+            requests=requests,
         )
 
         if not candidates:
@@ -104,8 +119,8 @@ class LineupGenerator:
         weights = self.weights.calculate_weights_batch(video_ids)
 
         # Apply request multiplier
-        if request_payload and "series" in request_payload:
-            requested_series = request_payload["series"]
+        for req in requests:
+            requested_series = req["series"]
             for video in candidates:
                 if video.series == requested_series:
                     weights[video.id] *= 3.0
@@ -117,6 +132,7 @@ class LineupGenerator:
             available_duration=available_duration,
             min_episodes=min_episodes,
             max_episodes=max_episodes,
+            requests=requests,
         )
 
         if not selected:
@@ -139,14 +155,16 @@ class LineupGenerator:
     def _build_candidate_pool(
         self,
         cooldown_days: int,
-        request_payload: Optional[dict] = None,
+        requests: List[dict] = None,
+        request_payload: Optional[dict] = None, # Kept for compatibility if called internally
     ) -> List[Video]:
         """
         Build pool of candidate episodes.
 
         Args:
             cooldown_days: Cooldown period in days
-            request_payload: Optional request constraints
+            requests: List of request dicts
+            request_payload: Legacy payload (deprecated)
 
         Returns:
             List of candidate videos
@@ -154,10 +172,12 @@ class LineupGenerator:
         # Start with all enabled videos
         candidates = self.library.list_episodes(disabled=False)
 
-        # Apply request filter
-        if request_payload and "series" in request_payload:
+        # Legacy support
+        if request_payload and "series" in request_payload and not requests:
             requested_series = request_payload["series"]
+            # Legacy behavior: STRICT filtering
             candidates = [v for v in candidates if v.series == requested_series]
+            return candidates
 
         # Exclude recently played
         with get_db() as db:
@@ -170,10 +190,23 @@ class LineupGenerator:
             )
             recent_ids = {row.video_id for row in recent_plays}
 
-        candidates = [v for v in candidates if v.id not in recent_ids]
+        # If we have requests, we MUST include episodes from requested series even if recently played?
+        # Or should we respect cooldown?
+        # Usually explicit request overrides cooldown.
+        
+        requested_series_names = {r["series"] for r in requests} if requests else set()
+        
+        filtered_candidates = []
+        for v in candidates:
+            # If video is in requested series, include it (ignore cooldown)
+            if v.series in requested_series_names:
+                filtered_candidates.append(v)
+            # Otherwise, respect cooldown
+            elif v.id not in recent_ids:
+                filtered_candidates.append(v)
 
-        logger.info(f"Candidate pool: {len(candidates)} episodes")
-        return candidates
+        logger.info(f"Candidate pool: {len(filtered_candidates)} episodes")
+        return filtered_candidates
 
     def _select_episodes(
         self,
@@ -182,6 +215,7 @@ class LineupGenerator:
         available_duration: int,
         min_episodes: int,
         max_episodes: int,
+        requests: List[dict] = None,
     ) -> List[Video]:
         """
         Select episodes using weighted random selection.
@@ -192,6 +226,7 @@ class LineupGenerator:
             available_duration: Available duration in seconds
             min_episodes: Minimum episodes to select
             max_episodes: Maximum episodes to select
+            requests: List of requests to fulfill
 
         Returns:
             List of selected videos
@@ -199,11 +234,48 @@ class LineupGenerator:
         selected = []
         total_duration = 0
         used_series_seasons = set()
-
+        
         # Filter out zero-weight candidates
         valid_candidates = [v for v in candidates if weights.get(v.id, 0) > 0]
 
-        for _ in range(max_episodes):
+        # 1. Fulfill requests first
+        if requests:
+            for req in requests:
+                series = req["series"]
+                count = req["count"]
+                
+                # Get candidates for this series
+                series_candidates = [v for v in valid_candidates if v.series == series]
+                
+                # Select 'count' episodes
+                # Use weighted selection among them
+                for _ in range(count):
+                    if not series_candidates:
+                        logger.warning(f"Not enough episodes to fulfill request for {series}")
+                        break
+                        
+                    weight_list = [weights[v.id] for v in series_candidates]
+                    if sum(weight_list) == 0:
+                        break
+                        
+                    chosen = random.choices(series_candidates, weights=weight_list, k=1)[0]
+                    
+                    # Add to selection
+                    selected.append(chosen)
+                    total_duration += chosen.duration_seconds
+                    used_series_seasons.add((chosen.series, chosen.season))
+                    
+                    # Remove from pools
+                    valid_candidates.remove(chosen)
+                    series_candidates.remove(chosen)
+                    
+                    logger.info(f"Selected requested: {chosen.series} {chosen.episode_code}")
+
+        # 2. Fill remaining slots
+        while len(selected) < max_episodes:
+            # Check duration limit (soft limit, can go over slightly if under min episodes? No, strict on max duration usually)
+            # But we have a tolerance.
+            
             # Try to maintain diversity
             diverse_candidates = [
                 v
@@ -241,6 +313,12 @@ class LineupGenerator:
                     f"Selected: {chosen.series} {chosen.episode_code} "
                     f"({chosen.duration_seconds}s, weight: {weights[chosen.id]:.2f})"
                 )
+            else:
+                # If we can't fit this one, maybe try another? 
+                # For simplicity, we just skip it and remove from pool to try others?
+                # Or just break if we are close enough?
+                valid_candidates.remove(chosen) # Try to find a shorter one?
+                continue
 
             # Stop if we're close to target and have minimum episodes
             if len(selected) >= min_episodes and abs(new_total - available_duration) < 60:
@@ -335,8 +413,10 @@ class LineupGenerator:
 
         import statistics
 
+        variance = statistics.stdev(durations) if len(durations) > 1 else 0.0
+
         logger.info(
             f"KPIs - Weight: mean={statistics.mean(selected_weights):.3f}, "
             f"Duration: mean={statistics.mean(durations):.1f}s, "
-            f"variance={statistics.stdev(durations):.1f}s"
+            f"variance={variance:.1f}s"
         )

@@ -1,0 +1,15 @@
+[Unit]
+Description=Alma TV Feedback UI Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={uv_path} run alma feedback ui
+WorkingDirectory={working_dir}
+Restart=on-failure
+RestartSec=10
+Environment=ALMA_DATABASE_URL={database_url}
+Environment=ALMA_LOG_FILE={log_file}
+
+[Install]
+WantedBy=default.target

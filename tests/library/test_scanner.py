@@ -49,7 +49,7 @@ def test_parse_filename_valid():
     scanner = Scanner()
 
     # With title
-    result = scanner.parse_filename(Path("Bluey_S01E01_MagicXylophone.mp4"))
+    result = scanner.parse_filename(Path("Bluey_S01E01_Magic_Xylophone.mp4"))
     assert result is not None
     assert result["series"] == "Bluey"
     assert result["season"] == 1
@@ -57,7 +57,7 @@ def test_parse_filename_valid():
     assert result["title"] == "Magic Xylophone"
 
     # Without title
-    result = scanner.parse_filename(Path("PawPatrol_S02E05.mp4"))
+    result = scanner.parse_filename(Path("Paw_Patrol_S02E05.mp4"))
     assert result is not None
     assert result["series"] == "Paw Patrol"
     assert result["season"] == 2

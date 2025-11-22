@@ -30,18 +30,18 @@ This roadmap is structured so an autonomous coding agent can implement Alma TV e
 **Acceptance Criteria**: Scanner discovers media from nested directories, metadata persisted to SQLite, CLI exposes scan/list commands, and benchmark demonstrates scan time target per `plan.md`.
 
 ### Component: Filesystem Watcher & Scanner
-- [ ] Implement recursive scanner using `watchdog` fallback to manual scan.
-- [ ] Parse filenames into `series`, `season`, `episode_code`, gracefully handling unknown formats.
-- [ ] Integrate `ffprobe` duration extraction with retry logic.
-- [ ] Upsert metadata into `videos` table via SQLAlchemy models defined in this phase.
-- [ ] Emit change log entry (JSON) for benchmarking/tracing.
+- [x] Implement recursive scanner using `watchdog` fallback to manual scan. <!-- id: 12 -->
+- [x] Parse filenames into `series`, `season`, `episode_code`, gracefully handling unknown formats. <!-- id: 13 -->
+- [x] Integrate `ffprobe` duration extraction with retry logic. <!-- id: 14 -->
+- [x] Upsert metadata into `videos` table via SQLAlchemy models defined in this phase. <!-- id: 15 -->
+- [x] Emit change log entry (JSON) for benchmarking/tracing. <!-- id: 16 -->
 - **Tests**: `tests/library/test_scanner.py` mocks filesystem + ffprobe. Include case coverage for nested folders and bad files.
 - **Benchmark**: `pytest benchmarks/scanner_bench.py --benchmark-only`; ensure synthetic dataset <90 s (log result in `benchmarks/results/scanner.json`).
 
 ### Component: Library Service API
-- [ ] Build query helpers (list series, list episodes, random selection with filters) exposed via Typer CLI and importable API.
-- [ ] Ensure service honors `disabled` flag and duration filters.
-- [ ] Add caching layer (LRU) for hot queries to reduce scheduler latency.
+- [x] Build query helpers (list series, list episodes, random selection with filters) exposed via Typer CLI and importable API. <!-- id: 17 -->
+- [x] Ensure service honors `disabled` flag and duration filters. <!-- id: 18 -->
+- [x] Add caching layer (LRU) for hot queries to reduce scheduler latency. <!-- id: 19 -->
 - **Tests**: `tests/library/test_service.py` verifying query correctness and cache behavior.
 
 ---
@@ -100,8 +100,12 @@ This roadmap is structured so an autonomous coding agent can implement Alma TV e
 - [ ] Persist rating -> `feedback` table and trigger weight recompute hook.
 - **Tests**: `tests/feedback/test_api.py` verifying payload validation and DB writes.
 
-### Component: Child-Friendly UI
-- [ ] Build touchscreen-friendly interface (Flask + HTMX or Kivy) with three emotive buttons per episode.
+### Component: Child-Friendly UI (FastHTML + MonsterUI)
+- [ ] Build web interface using FastHTML and MonsterUI.
+- [ ] Create "Parent Mode" for inputting natural language requests (e.g., "tomorrow two Bluey").
+- [ ] Create "Child Mode" with large, touch-friendly emoji buttons for feedback.
+- [ ] Auto-populate from latest session; auto-timeout marks `okay`.
+- [ ] Play victory sound/animation on submission.
 - [ ] Auto-populate from latest session; auto-timeout marks `okay`.
 - [ ] Play victory sound/animation on submission.
 - **Tests**: `tests/feedback/test_ui.py` (Playwright) ensuring buttons accessible, icons load offline.
