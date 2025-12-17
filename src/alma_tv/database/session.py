@@ -18,7 +18,8 @@ def init_db() -> None:
     global _engine, _SessionLocal
 
     settings = get_settings()
-
+    print(f"DEBUG: Initializing DB with URL: {settings.database_url}")
+    
     _engine = create_engine(
         settings.database_url,
         echo=settings.debug,

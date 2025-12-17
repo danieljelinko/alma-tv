@@ -41,6 +41,44 @@ class LineupGenerator:
         if seed is not None:
             random.seed(seed)
 
+    def generate_daily_lineup(self, target_date: date) -> Optional[int]:
+        """
+        Generate lineup for a specific date, checking for saved requests first.
+        
+        Args:
+            target_date: Date for the lineup
+            
+        Returns:
+            Session ID if successful, None otherwise
+        """
+        from alma_tv.database.models import Request as RequestModel
+        
+        # Check for saved requests for this date
+        request_payload = None
+        with get_db() as db:
+            # Look for unfulfilled request
+            target_datetime = datetime.combine(target_date, datetime.min.time())
+            
+            req = db.query(RequestModel).filter(
+                RequestModel.fulfilled == False,
+                RequestModel.request_date >= target_datetime - timedelta(days=1),  # Within last day
+                RequestModel.request_date <= target_datetime + timedelta(days=1)
+            ).order_by(RequestModel.request_date.desc()).first()
+            
+            if req:
+                logger.info(f"Found saved request: {req.payload}")
+                request_payload = req.payload
+                # Mark as fulfilled after we use it
+                req.fulfilled = True
+                req.fulfilled_at = datetime.utcnow()
+                db.commit()
+        
+        # Generate lineup with the request (or None if no request)
+        return self.generate_lineup(
+            target_date=target_date,
+            request_payload=request_payload
+        )
+
     def generate_lineup(
         self,
         target_date: date,

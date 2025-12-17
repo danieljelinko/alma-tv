@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+    <!-- Definitions for 80s/90s Theme -->
+    <defs>
+        <!-- Radical 80s gradient background -->
+        <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#FF6B9D;stop-opacity:1" />
+            <stop offset="50%" style="stop-color:#C371E3;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#4FACFE;stop-opacity:1" />
+        </linearGradient>
+        
+        <!-- Glow effects for neon look -->
+        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="4" stdDeviation="10" flood-opacity="0.4"/>
+        </filter>
+        
+        <filter id="handGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+        
+        <!-- Memphis-style pattern -->
+        <pattern id="memphisPattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+            <circle cx="5" cy="5" r="2" fill="#FFD700" opacity="0.3"/>
+            <rect x="20" y="20" width="4" height="4" fill="#FF1744" opacity="0.3"/>
+            <line x1="0" y1="0" x2="40" y2="40" stroke="#00E5FF" stroke-width="1" opacity="0.2"/>
+        </pattern>
+    </defs>
+    
+    <rect width="100%" height="100%" fill="url(#bgGradient)" />
+    
+    <!-- Progress Ring -->
+    <circle cx="400" cy="300" r="290" fill="none" stroke="#37474F" stroke-width="30" opacity="0.3" />
+        <defs>
+            <filter id="progressGlow">
+                <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+            </filter>
+        </defs>
+        <path d="M 400.0 10.0 A 290 290 0 1 1 257.0808169321469 552.3372883884138" fill="none" stroke="#B388FF" stroke-width="30" 
+              stroke-linecap="round" filter="url(#progressGlow)" />
+        
+    
+    <!-- Clock Face with bold 80s style border -->
+    <circle cx="400" cy="300" r="250" fill="#FFFDE7" stroke="#FF6B35" stroke-width="8" filter="url(#shadow)" />
+    
+    <!-- Optional Memphis pattern overlay on face -->
+    <circle cx="400" cy="300" r="250" fill="url(#memphisPattern)" opacity="0.15" />
+    
+    <!-- Waiting Sector -->
+    
+    
+    <!-- Markers -->
+    <rect x="394.0" y="74.0" width="12" height="12" fill="#FF1744" stroke="#FFF" stroke-width="2" />
+<text x="400.0" y="118.0" text-anchor="middle" 
+                                   font-family="Arial Black, sans-serif" font-size="28" 
+                                   font-weight="bold" fill="#FF1744" stroke="#FFF" stroke-width="1">
+                                   12</text>
+<circle cx="512.5" cy="105.14428414850133" r="6" fill="#FFEA00" stroke="#FFF" stroke-width="1.5" />
+<circle cx="594.8557158514986" cy="187.5" r="6" fill="#00E5FF" stroke="#FFF" stroke-width="1.5" />
+<rect x="614.0" y="294.0" width="12" height="12" fill="#FFEA00" stroke="#FFF" stroke-width="2" />
+<text x="590.0" y="308.0" text-anchor="middle" 
+                                   font-family="Arial Black, sans-serif" font-size="28" 
+                                   font-weight="bold" fill="#FFEA00" stroke="#FFF" stroke-width="1">
+                                   3</text>
+<circle cx="594.8557158514986" cy="412.5" r="6" fill="#FF6B35" stroke="#FFF" stroke-width="1.5" />
+<circle cx="512.5" cy="494.85571585149864" r="6" fill="#4ECDC4" stroke="#FFF" stroke-width="1.5" />
+<rect x="394.0" y="514.0" width="12" height="12" fill="#00E5FF" stroke="#FFF" stroke-width="2" />
+<text x="400.0" y="498.0" text-anchor="middle" 
+                                   font-family="Arial Black, sans-serif" font-size="28" 
+                                   font-weight="bold" fill="#00E5FF" stroke="#FFF" stroke-width="1">
+                                   6</text>
+<circle cx="287.50000000000006" cy="494.8557158514987" r="6" fill="#FFEA00" stroke="#FFF" stroke-width="1.5" />
+<circle cx="205.1442841485013" cy="412.5" r="6" fill="#00E5FF" stroke="#FFF" stroke-width="1.5" />
+<rect x="174.0" y="294.0" width="12" height="12" fill="#B388FF" stroke="#FFF" stroke-width="2" />
+<text x="210.0" y="308.0" text-anchor="middle" 
+                                   font-family="Arial Black, sans-serif" font-size="28" 
+                                   font-weight="bold" fill="#B388FF" stroke="#FFF" stroke-width="1">
+                                   9</text>
+<circle cx="205.14428414850133" cy="187.49999999999997" r="6" fill="#FF6B35" stroke="#FFF" stroke-width="1.5" />
+<circle cx="287.4999999999999" cy="105.14428414850136" r="6" fill="#4ECDC4" stroke="#FFF" stroke-width="1.5" />
+    
+    <!-- Hands -->
+    <line x1="400" y1="300" x2="275.0190381054511" y2="302.18155080466045" 
+                    stroke="#FF6B35" stroke-width="8" stroke-linecap="round" 
+                    filter="url(#handGlow)" />
+    <line x1="400" y1="300" x2="363.61545410689206" y2="128.82416987158402" 
+                    stroke="#4ECDC4" stroke-width="6" stroke-linecap="round" 
+                    filter="url(#handGlow)" />
+    <line x1="400" y1="300" x2="517.5570504584946" y2="138.19660112501052" 
+                    stroke="#FF1744" stroke-width="3" stroke-linecap="round" 
+                    filter="url(#handGlow)" />
+    
+    <!-- Center Dot -->
+    <circle cx="400" cy="300" r="12" fill="#FF6B35" stroke="#FFF" stroke-width="3" />
+    
+    <!-- Countdown Text (Large and Prominent) -->
+    <text x="400" y="80" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#FF6B35">
+        10h 1m until show!
+    </text>
+    
+    <!-- Digital Time -->
+    <text x="400" y="570" font-family="Arial, sans-serif" font-size="36" text-anchor="middle" fill="#424242">
+        08:58:06
+    </text>
+    
+    <!-- Helper text for kids -->
+    <text x="400" y="530" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#666">
+        Current time
+    </text>
+</svg>

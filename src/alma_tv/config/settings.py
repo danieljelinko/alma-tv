@@ -109,6 +109,12 @@ class Settings(BaseSettings):
         le=60,
         description="Target duration for viewing block in minutes",
     )
+    nr_shows_per_night: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Default number of shows per night (also max for requests)",
+    )
     repeat_cooldown_days: int = Field(
         default=14,
         ge=1,
@@ -117,7 +123,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(
-        default="sqlite:///var/lib/alma/alma.db",
+        default="sqlite:////home/helinko/Work/guess-class/alma-tv/data/alma.db",
         description="Database connection URL",
     )
 
@@ -154,8 +160,8 @@ class Settings(BaseSettings):
 
     # Feedback UI
     feedback_timeout: int = Field(
-        default=120,
-        ge=30,
+        default=30,
+        ge=5,
         description="Feedback UI timeout in seconds",
     )
     feedback_port: int = Field(
@@ -201,6 +207,18 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             v = os.path.expandvars(os.path.expanduser(v))
         return Path(v)
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def expand_db_url(cls, v: str) -> str:
+        """Expand environment variables in database URL."""
+        if v.startswith("sqlite:///"):
+            path_part = v.replace("sqlite:///", "")
+            expanded_path = os.path.expandvars(os.path.expanduser(path_part))
+            # If it's a relative path, make it absolute relative to CWD (or project root if we could determine it)
+            # For now, just expanding ~ and env vars is a big help
+            return f"sqlite:///{expanded_path}"
+        return v
 
     def ensure_directories(self) -> None:
         """Ensure required directories exist."""

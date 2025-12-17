@@ -26,10 +26,24 @@ class Scanner:
     """
 
     SUPPORTED_EXTENSIONS = {".mp4", ".mkv", ".avi", ".m4v", ".mov"}
-    EPISODE_PATTERN = re.compile(
-        r"(?P<series>.+?)_S(?P<season>\d+)E(?P<episode>\d+)(?:_(?P<title>.+))?",
-        re.IGNORECASE,
-    )
+    
+    # Multiple format patterns to handle various naming conventions
+    PATTERNS = [
+        # Format 1: release-series.s01e01.extra.mkv (with release group prefix)
+        re.compile(r"^[^-]+-(?P<series>.+?)\.s(?P<season>\d+)e(?P<episode>\d+)", re.IGNORECASE),
+        # Format 2: series.s01e01.extra.mkv (dot-separated scene format)
+        re.compile(r"^(?P<series>.+?)\.s(?P<season>\d+)e(?P<episode>\d+)", re.IGNORECASE),
+        # Format 3: Series_S01E01_Title.ext (underscore format with title)
+        re.compile(r"^(?P<series>.+?)_S(?P<season>\d+)E(?P<episode>\d+)(?:_(?P<title>.+))?", re.IGNORECASE),
+        # Format 4: Series-S01E01-Title.ext (hyphen format)
+        re.compile(r"^(?P<series>.+?)-S(?P<season>\d+)E(?P<episode>\d+)(?:-(?P<title>.+))?", re.IGNORECASE),
+        # Format 5: Series - S01E01 - Title.ext (spaced format)
+        re.compile(r"^(?P<series>.+?)\s+-\s+S(?P<season>\d+)E(?P<episode>\d+)", re.IGNORECASE),
+        # Format 6: Series - Title (35 episode ⧸ 1 season) [HD].ext (Peppa Pig format with Unicode slash)
+        re.compile(r"^(?P<series>.+?)\s+-\s+(?P<title>.+?)\s+\((?P<episode>\d+)\s+episode\s*[/⧸]\s*(?P<season>\d+)\s+season\)", re.IGNORECASE),
+        # Format 7: SERIES - EP01 - Title.ext (Trotro format)
+        re.compile(r"^(?P<series>.+?)\s+-\s+EP(?P<episode>\d+)\s+-\s+(?P<title>.+)", re.IGNORECASE),
+    ]
 
     def __init__(self, media_root: Optional[Path] = None):
         """
@@ -45,7 +59,14 @@ class Scanner:
         """
         Parse video filename to extract metadata.
 
-        Expected format: SeriesName_SxxEyy_Title.ext
+        Supports multiple formats:
+        - release-bluey.s01e01.720p.mkv (with release group)
+        - bluey.s01e01.720p.mkv (scene format)
+        - Bluey_S01E01_Magic.mkv (underscore format)
+        - Bluey-S01E01-Magic.mkv (hyphen format)  
+        - Bluey - S01E01 - Magic.mkv (spaced format)
+        - Peppa Pig - Title (35 episode / 1 season).mkv (Peppa format)
+        - TROTRO - EP01 - Title.mkv (Trotro format)
 
         Args:
             file_path: Path to video file
@@ -55,19 +76,35 @@ class Scanner:
             or None if parsing fails
         """
         stem = file_path.stem
-        match = self.EPISODE_PATTERN.match(stem)
+        
+        # Try each pattern in order
+        for pattern in self.PATTERNS:
+            match = pattern.match(stem)
+            if match:
+                data = match.groupdict()
+                series = data["series"].replace(".", " ").replace("_", " ").replace("-", " ").strip()
+                
+                # Apply keyword map for normalization
+                series_lower = series.lower()
+                for keyword, canonical in self.settings.keyword_map.items():
+                    if keyword.lower() in series_lower:
+                        series = canonical
+                        break
+                
+                # Handle optional season (default to 1 for formats like Trotro)
+                season = int(data.get("season", 1))
+                episode = int(data["episode"])
+                
+                return {
+                    "series": series,
+                    "season": season,
+                    "episode_code": f"S{season:02d}E{episode:02d}",
+                    "title": data.get("title", "").replace("_", " ").replace("-", " ").strip() if data.get("title") else None,
+                }
 
-        if not match:
-            logger.warning(f"Could not parse filename: {file_path.name}")
-            return None
+        logger.warning(f"Could not parse filename: {file_path.name}")
+        return None
 
-        data = match.groupdict()
-        return {
-            "series": data["series"].replace("_", " ").strip(),
-            "season": int(data["season"]),
-            "episode_code": f"S{int(data['season']):02d}E{int(data['episode']):02d}",
-            "title": data.get("title", "").replace("_", " ").strip() if data.get("title") else None,
-        }
 
     def get_duration(self, file_path: Path, retry_count: int = 3) -> Optional[int]:
         """

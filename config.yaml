@@ -1,4 +1,6 @@
 media_root: /home/helinko/Videos/esti_mese
+log_file: ./data/alma.log
+database_url: sqlite:///./data/alma.db
 keyword_map:
   blueie: Bluey
   blui: Bluey
