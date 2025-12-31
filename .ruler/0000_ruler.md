@@ -47,6 +47,6 @@ The automation is triggered manually but agents can request rule updates by aski
 
 - **Universal Rules**: Applied to all repositories (coding style, package management, ruler docs)
 - **UI Projects**: Get additional FastHTML/HTMX/MonsterUI rules
-- **Notebook Projects**: Get nbdev structure rules (except guess-class-core which has special nbdev rules)
+- **Notebook Projects**: Get nbdev structure rules (except tag-core which has special nbdev rules)
 
 This system ensures consistent coding standards and AI assistant behavior across the entire guess-class ecosystem.

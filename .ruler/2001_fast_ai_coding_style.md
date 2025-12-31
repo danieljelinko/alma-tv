@@ -32,7 +32,7 @@ alwaysApply: true
 ## Imports
 
 - Keep general module imports on a single line as shown above.
-- When working with constants modules (e.g. `guess_class_libs.entities.common_keys`), prefer `from ...common_keys import *` so lookups like `cfg[DB_STR]` stay concise.
+- When working with constants modules (e.g. `tag.core.entities.common_keys`), prefer `from ...common_keys import *` so lookups like `cfg[DB_STR]` stay concise.
 
 ## Code style
 
@@ -65,7 +65,7 @@ alwaysApply: true
 - **Code Reuse Analysis**: Before implementing, check if similar functionality exists
 
 ### No Magic Strings => centralized const definitions
-- **Constants File**: Import keys from `guess_class_libs.entities.common_keys` (or add a `{module}_common_keys.py` alongside the code you are authoring) so `config[BATCH_SIZE]` replaces `config['batch_size']`. Define new constants there before using them.
+- **Constants File**: Import keys from `tag.core.entities.common_keys` (or add a `{module}_common_keys.py` alongside the code you are authoring) so `config[BATCH_SIZE]` replaces `config['batch_size']`. Define new constants there before using them.
 
 
 ### Performance
