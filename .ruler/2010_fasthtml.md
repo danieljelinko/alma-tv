@@ -1,23 +1,26 @@
 # FastHTML + HTMX Rules
 
-## Stack Snapshot
-- FastHTML provides HTML-first routing on top of Starlette/Uvicorn; build views with Python FastTags (`Div`, `P`, `Card`, ...).
+## App setup
 
-## References
-- [fasthtml.mdc](mdc:.cursor/rules/fasthtml.mdc) – core FastHTML + HTMX patterns.
+- Create apps with `app, rt = fast_app(hdrs=Theme.<palette>.headers())`; call `serve()` at the bottom — no uvicorn wrapper.
+- Define routes with `@rt` (GET/POST) or `@app.<method>`; return HTML tags or strings, never JSON.
+- Keep logic in small helpers; UI functions should compose tags and read like templates.
 
-## Build Checklist
-- [ ] Create apps with `app, rt = fast_app(hdrs=Theme.<palette>.headers())`; call `serve()` directly (no uvicorn wrapper).
-- [ ] Define routes with `@rt` (GET/POST) or `@app.<method>`; return HTML tags or strings, not JSON APIs.
-- [ ] Keep logic in small helpers; UI functions should compose tags and read like templates.
+## HTMX
 
-## HTMX Essentials
-- FastHTML route functions stringify to their path, so `Button("Show", hx_get=my_route)` resolves to `/my_route`.
-- Use `.to(...)` when you need to pass query/path params: `hx_get=my_route.to(item_id=5)` → `/my_route?item_id=5`.
-- Prefer `hx_target` + `hx_swap` to update only the affected DOM node; wrap reusable pieces in helper functions that return tags.
-- Forms default to POST; for GET updates use `hx_get`. Remember to set `hx_trigger` when the default (`change`) is not desired.
+- FastHTML route functions stringify to their path: `Button("Show", hx_get=my_route)` resolves to `/my_route`.
+- Use `.to(...)` to pass query/path params: `hx_get=my_route.to(item_id=5)` → `/my_route?item_id=5`.
+- Prefer `hx_target` + `hx_swap` to update only the affected DOM node; wrap reusable pieces in helpers that return tags.
+- Forms default to POST; use `hx_get` for read updates. Set `hx_trigger` when the default (`change`) is not right.
+
+## Common mistakes
+
+- **Never return JSON from a view route.** FastHTML views return HTML tags or strings — if you find yourself calling `return JSONResponse(...)`, you're doing it wrong.
+- **Never call uvicorn directly.** Use `serve()` at the module bottom: `if __name__ == '__main__': serve()`.
+- **Never build URL strings by hand.** Use route stringification: `hx_get=my_route` or `hx_get=my_route.to(id=5)`, not `hx_get=f"/my_route?id={id}"`.
 
 ## Pattern Library
+
 ### File Upload Grid
 ```python
 from base64 import b64encode
@@ -96,7 +99,7 @@ def page(idx: int = 1):
 - After upserts, return `(mk_todo_list(), mk_todo_form()(hx_swap_oob='true', hx_target='#todo-input'))` to refresh list and reset the form in one response.
 
 ## WebSockets + Sessions
-Session data is shared between HTTP routes and websockets. Example:
+Session data is shared between HTTP routes and websockets:
 ```python
 app = FastHTML(exts='ws')
 rt = app.route
@@ -111,6 +114,7 @@ async def ws(msg: str, send, session):
     await send(Div(f"Hello {session.get('person')} {msg}", id='notifications'))
 ```
 
-## Design Notes
-- Keep scripts inline for tiny snippets; move larger JS into separate files but still mount via `Script(src=...)`.
+## Design
+
+- Keep scripts inline for tiny snippets; move larger JS to separate files, mount via `Script(src=...)`.
 - Prefer HTMX interactions over raw JS; fall back to vanilla JS only for capabilities HTMX cannot provide.

@@ -25,7 +25,7 @@ project-root/
 │   │   │   ├── __init__.py
 │   │   │   ├── module_name.py    # From notebooks
 │   │   │   └── ...
-│   │   ├── __init__.py             
+│   │   ├── __init__.py
 │   │   └── 002_module_name.py    # Normal python modules (not generated from notebooks, thus can be edited directly)
 │   └── submodule2/
 ├── docs/                         # Generated documentation
@@ -37,7 +37,7 @@ project-root/
 
 ### settings.ini (Project Root)
 - `lib_path` = package directory name
-- `nbs_path` = notebooks directory (usually "nbs")  
+- `nbs_path` = notebooks directory (usually "nbs")
 - `doc_path` = documentation output (usually "_docs")
 - `recursive = True` for submodule support
 
@@ -47,24 +47,6 @@ project-root/
 Example in notebook first cell:
 ```python
 #|default_exp {submodule}.gen.{module_name}
-```
-
-## API Aggregation Pattern
-
-### Public API Exposure
-Each `{submodule}` uses an aggregator pattern in `__init__.py`:
-
-```python
-# {package}/{submodule}/__init__.py`
-from ..utils.nbdev_utils import reexport_into, reexport_current_dir_modules, enable_deep_module_imports_from_gen
-
-# Load nbdev-generated modules first, then current directory modules
-__all__ = []
-reexport_into(__name__ + ".gen", globals(), __all__)
-reexport_current_dir_modules(__name__, __file__, globals(), __all__)
-
-# Enable deep module imports like: from package.submodule.module_name import function
-enable_deep_module_imports_from_gen(__name__, __file__)
 ```
 
 ## Import Patterns
